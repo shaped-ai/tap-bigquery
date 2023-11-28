@@ -49,12 +49,21 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
 
     query = "SELECT {columns} FROM {table} WHERE 1=1".format(**keys)
 
-    def _parse_integer_as_datetime(field: str) -> str:
-        return f"CAST(TIMESTAMP_SECONDS(COALESCE(SAFE_CAST(SUBSTR(CAST({field} AS STRING), 1, 10) AS INT64), 0) as datetime)"
+    def _parse_integer_timestamp_as_datetime(field: str) -> str:
+        return f"TIMESTAMP_SECONDS(COALESCE(SAFE_CAST(SUBSTR(CAST({field} AS STRING), 1, 10) AS INT64), 0))"
 
     if datetime_format == "integer":
-        # Format start, end and datetime_key as converted datetime.
-        keys["start_datetime"] = _parse_integer_as_datetime("start_datetime")
+        # Format integer column into trimmed timestamp.
+        if keys.get("datetime_key"):
+            keys["datetime_key"] = _parse_integer_timestamp_as_datetime("datetime_key")
+
+        # Only convert start and end if they are integers (timestamps).
+        start_datetime = keys.get("start_datetime")
+        end_datetime = keys.get("end_datetime")
+        if start_datetime and start_datetime.isdigit():
+            keys["start_datetime"] = _parse_integer_timestamp_as_datetime(start_datetime)
+        if end_datetime and end_datetime.isdigit():
+            keys["end_datetime"] = _parse_integer_timestamp_as_datetime(end_datetime)
 
     if filters:
         for f in filters:
@@ -63,17 +72,17 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
     if keys.get("datetime_key") and keys.get("start_datetime"):
         if inclusive_start:
             query = (query +
-                     (" AND datetime '{start_datetime}' <= " +
+                     (" AND CAST({start_datetime} as datetime) <= " +
                       "CAST({datetime_key} as datetime)").format(**keys))
         else:
             query = (query +
-                     (" AND datetime '{start_datetime}' < " +
+                     (" AND CAST({start_datetime} as datetime) < " +
                       "CAST({datetime_key} as datetime)").format(**keys))
 
     if keys.get("datetime_key") and keys.get("end_datetime"):
         query = (query +
                  (" AND CAST({datetime_key} as datetime) < " +
-                  "datetime '{end_datetime}'").format(**keys))
+                  "CAST({end_datetime} AS datetime)").format(**keys))
     if keys.get("datetime_key"):
         query = (query + " ORDER BY {datetime_key}".format(**keys))
 
@@ -170,6 +179,15 @@ def do_sync(config, state, stream):
     metadata = stream.metadata[0]["metadata"]
     tap_stream_id = stream.tap_stream_id
 
+    # Get datetime key type from stream schema to determine query format.
+    datetime_key_schema = stream.schema.properties[metadata["datetime_key"]]
+    datetime_key_types = datetime_key_schema.type
+
+    if "integer" in datetime_key_types:
+        datetime_key_format = "integer"
+    else:
+        datetime_key_format = "date-time"
+
     inclusive_start = True
     start_datetime = singer.get_bookmark(state, tap_stream_id,
                                          BOOKMARK_KEY_NAME)
@@ -178,12 +196,16 @@ def do_sync(config, state, stream):
             inclusive_start = False
     else:
         start_datetime = config.get("start_datetime")
-    start_datetime = dateutil.parser.parse(start_datetime).strftime(
-            "%Y-%m-%d %H:%M:%S.%f")
+        if datetime_key_format == "date-time":
+            start_datetime = dateutil.parser.parse(start_datetime).strftime(
+                    "%Y-%m-%d %H:%M:%S.%f")
 
+    end_datetime = None
     if config.get("end_datetime"):
-        end_datetime = dateutil.parser.parse(
-            config.get("end_datetime")).strftime("%Y-%m-%d %H:%M:%S.%f")
+        end_datetime = config.get("end_datetime")
+        if datetime_key_format == "date-time":
+            end_datetime = dateutil.parser.parse(
+                config.get("end_datetime")).strftime("%Y-%m-%d %H:%M:%S.%f")
 
     singer.write_schema(tap_stream_id, stream.schema.to_dict(),
                         stream.key_properties)
@@ -196,15 +218,6 @@ def do_sync(config, state, stream):
             }
 
     limit = config.get("limit", None)
-
-    # Get datetime key type from stream schema to determine query format.
-    datetime_key_schema = stream.schema.properties[metadata["datetime_key"]]
-    datetime_key_types = datetime_key_schema.type
-
-    if "integer" in datetime_key_types:
-        datetime_key_format = "integer"
-    else:
-        datetime_key_format = "date-time"
 
     query = _build_query(keys, metadata.get("filters", []), inclusive_start,
                          limit=limit, datetime_format=datetime_key_format)
