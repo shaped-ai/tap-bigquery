@@ -60,10 +60,16 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
         # Only convert start and end if they are integers (timestamps).
         start_datetime = keys.get("start_datetime")
         end_datetime = keys.get("end_datetime")
-        if start_datetime and start_datetime.isdigit():
-            keys["start_datetime"] = _parse_integer_timestamp_as_datetime(start_datetime)
-        if end_datetime and end_datetime.isdigit():
-            keys["end_datetime"] = _parse_integer_timestamp_as_datetime(end_datetime)
+        if start_datetime:
+            if start_datetime.isdigit():
+                keys["start_datetime"] = _parse_integer_timestamp_as_datetime(start_datetime)
+            else:
+                keys["start_datetime"] = f"'{start_datetime}'"
+        if end_datetime:
+            if end_datetime.isdigit():
+                keys["end_datetime"] = _parse_integer_timestamp_as_datetime(end_datetime)
+            else:
+                keys["end_datetime"] = f"'{end_datetime}'"
 
     if filters:
         for f in filters:
