@@ -41,13 +41,20 @@ def get_bigquery_client():
         return bigquery.Client.from_service_account_info(json.loads(credentials_json))
     return bigquery.Client()
 
-def _build_query(keys, filters=[], inclusive_start=True, limit=None):
+def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_format="date-time"):
     columns = ",".join(keys["columns"])
     if "*" not in columns and keys["datetime_key"] not in columns:
         columns = columns + "," + keys["datetime_key"]
     keys["columns"] = columns
 
     query = "SELECT {columns} FROM {table} WHERE 1=1".format(**keys)
+
+    def _parse_integer_as_datetime(field: str) -> str:
+        return f"CAST(TIMESTAMP_SECONDS(COALESCE(SAFE_CAST(SUBSTR(CAST({field} AS STRING), 1, 10) AS INT64), 0) as datetime)"
+
+    if datetime_format == "integer":
+        # Format start, end and datetime_key as converted datetime.
+        keys["start_datetime"] = _parse_integer_as_datetime("start_datetime")
 
     if filters:
         for f in filters:
@@ -189,8 +196,18 @@ def do_sync(config, state, stream):
             }
 
     limit = config.get("limit", None)
+
+    # Get datetime key type from stream schema to determine query format.
+    datetime_key_schema = stream.schema.properties[metadata["datetime_key"]]
+    datetime_key_types = datetime_key_schema.type
+
+    if "integer" in datetime_key_types:
+        datetime_key_format = "integer"
+    else:
+        datetime_key_format = "date-time"
+
     query = _build_query(keys, metadata.get("filters", []), inclusive_start,
-                         limit=limit)
+                         limit=limit, datetime_format=datetime_key_format)
     query_job = client.query(query)
 
     properties = stream.schema.properties
