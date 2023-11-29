@@ -64,14 +64,13 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
             keys["start_datetime"] = _parse_integer_timestamp_as_datetime(start_datetime)
         if end_datetime and end_datetime.isdigit():
             keys["end_datetime"] = _parse_integer_timestamp_as_datetime(end_datetime)
-    else:
-        # Only convert start and end if they are strings (timestamps).
-        start_datetime = keys.get("start_datetime")
-        end_datetime = keys.get("end_datetime")
-        if start_datetime and not start_datetime.isdigit():
-                keys["start_datetime"] = "TIMESTAMP '{start_datetime}'".format(**keys)
-        if end_datetime and not end_datetime.isdigit():
-                keys["end_datetime"] = "TIMESTAMP '{end_datetime}'".format(**keys)
+    
+    start_datetime = keys.get("start_datetime")
+    end_datetime = keys.get("end_datetime")
+    if start_datetime and not start_datetime.isdigit():
+            keys["start_datetime"] = "TIMESTAMP '{start_datetime}'".format(**keys)
+    if end_datetime and not end_datetime.isdigit():
+            keys["end_datetime"] = "TIMESTAMP '{end_datetime}'".format(**keys)
 
     if filters:
         for f in filters:
@@ -107,6 +106,8 @@ def do_discover(config, stream, output_schema_file=None,
     keys = {"table": stream["table"],
             "columns": stream["columns"],
             "datetime_key": stream["datetime_key"],
+            "start_datetime": config.get("start_datetime"),
+            "end_datetime": config.get("end_datetime")
             }
     limit = config.get("limit", 10000)
     query = _build_query(keys, stream.get("filters"), limit=limit)
