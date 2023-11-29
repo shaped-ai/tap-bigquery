@@ -42,6 +42,7 @@ def get_bigquery_client():
     return bigquery.Client()
 
 def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_format="date-time"):
+    keys = copy.deepcopy(keys)
     columns = ",".join(keys["columns"])
     datetime_key = keys.get("datetime_key")
     if "*" not in columns and datetime_key is not None and datetime_key not in columns:
