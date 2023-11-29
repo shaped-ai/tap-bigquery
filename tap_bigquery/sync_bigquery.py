@@ -68,11 +68,9 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
         # Only convert start and end if they are strings (timestamps).
         start_datetime = keys.get("start_datetime")
         end_datetime = keys.get("end_datetime")
-        if start_datetime:
-            if not start_datetime.isdigit():
+        if start_datetime and not start_datetime.isdigit():
                 keys["start_datetime"] = "TIMESTAMP '{start_datetime}'".format(**keys)
-        if end_datetime:
-            if not end_datetime.isdigit():
+        if end_datetime and not end_datetime.isdigit():
                 keys["end_datetime"] = "TIMESTAMP '{end_datetime}'".format(**keys)
 
     if filters:
@@ -106,21 +104,10 @@ def do_discover(config, stream, output_schema_file=None,
                 add_timestamp=True):
     client = get_bigquery_client()
 
-    start_datetime = dateutil.parser.parse(
-        config.get("start_datetime")).strftime("%Y-%m-%d %H:%M:%S.%f")
-
-    end_datetime = None
-    if config.get("end_datetime"):
-        end_datetime = dateutil.parser.parse(
-            config.get("end_datetime")).strftime("%Y-%m-%d %H:%M:%S.%f")
-
     keys = {"table": stream["table"],
-            "columns": stream["columns"],
-            "datetime_key": stream["datetime_key"],
-            "start_datetime": start_datetime,
-            "end_datetime": end_datetime
+            "columns": stream["columns"]
             }
-    limit = config.get("limit", 100)
+    limit = config.get("limit", 10000)
     query = _build_query(keys, stream.get("filters"), limit=limit)
 
     LOGGER.info("Running query:\n    " + query)
