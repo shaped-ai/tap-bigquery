@@ -105,7 +105,8 @@ def do_discover(config, stream, output_schema_file=None,
     client = get_bigquery_client()
 
     keys = {"table": stream["table"],
-            "columns": stream["columns"]
+            "columns": stream["columns"],
+            "datetime_key": stream["datetime_key"],
             }
     limit = config.get("limit", 10000)
     query = _build_query(keys, stream.get("filters"), limit=limit)
