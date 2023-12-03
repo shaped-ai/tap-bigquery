@@ -108,7 +108,7 @@ def do_discover(config, stream, output_schema_file=None,
     keys = {"table": stream["table"],
             "columns": stream["columns"]
             }
-    limit = config.get("limit", 10000)
+    limit = config.get("limit", 100000)
     query = _build_query(keys, stream.get("filters"), limit=limit)
 
     LOGGER.info("Running query:\n    " + query)
