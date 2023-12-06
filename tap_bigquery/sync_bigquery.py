@@ -65,9 +65,9 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
         if end_datetime:
             keys["end_datetime"] = _parse_integer_timestamp_as_datetime(end_datetime)
     
-    if start_datetime and not start_datetime.isdigit():
+    if start_datetime and isinstance(start_datetime, str) and not start_datetime.isdigit():
             keys["start_datetime"] = f"TIMESTAMP '{start_datetime}'"
-    if end_datetime and not end_datetime.isdigit():
+    if end_datetime and isinstance(start_datetime, str) and not start_datetime.isdigit():
             keys["end_datetime"] = f"TIMESTAMP '{end_datetime}'"
 
     if filters:
