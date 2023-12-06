@@ -70,9 +70,9 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
     start_datetime = keys.get("start_datetime")
     end_datetime = keys.get("end_datetime")
     if start_datetime and not start_datetime.isdigit():
-            keys["start_datetime"] = "TIMESTAMP '{start_datetime}'".format(**keys)
+            keys["start_datetime"] = f"TIMESTAMP '{start_datetime}'"
     if end_datetime and not end_datetime.isdigit():
-            keys["end_datetime"] = "TIMESTAMP '{end_datetime}'".format(**keys)
+            keys["end_datetime"] = f"TIMESTAMP '{end_datetime}'"
 
     if filters:
         for f in filters:
