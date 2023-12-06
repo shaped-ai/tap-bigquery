@@ -54,21 +54,17 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
     def _parse_integer_timestamp_as_datetime(field: str) -> str:
         return f"TIMESTAMP_SECONDS(COALESCE(SAFE_CAST(SUBSTR(CAST({field} AS STRING), 1, 10) AS INT64), 0))"
 
+    start_datetime = keys.get("start_datetime")
+    end_datetime = keys.get("end_datetime")
     if datetime_format == "integer":
         # Format integer column into trimmed timestamp.
         if keys.get("datetime_key"):
             keys["datetime_key"] = _parse_integer_timestamp_as_datetime(datetime_key)
-
-        # Only convert start and end if they are integers (timestamps).
-        start_datetime = keys.get("start_datetime")
-        end_datetime = keys.get("end_datetime")
         if start_datetime:
             keys["start_datetime"] = _parse_integer_timestamp_as_datetime(start_datetime)
         if end_datetime:
             keys["end_datetime"] = _parse_integer_timestamp_as_datetime(end_datetime)
     
-    start_datetime = keys.get("start_datetime")
-    end_datetime = keys.get("end_datetime")
     if start_datetime and not start_datetime.isdigit():
             keys["start_datetime"] = f"TIMESTAMP '{start_datetime}'"
     if end_datetime and not end_datetime.isdigit():
