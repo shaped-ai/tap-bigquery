@@ -263,6 +263,10 @@ def do_sync(config, state, stream):
                 else:
                     record[key] = row[key]
 
+                # If null is only type, force null.
+                if all([t == "null" for t in prop.type]):
+                    record[key] = None
+
             if LEGACY_TIMESTAMP in properties.keys():
                 record[LEGACY_TIMESTAMP] = int(round(time.time() * 1000))
             if EXTRACT_TIMESTAMP in properties.keys():
