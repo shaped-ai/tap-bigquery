@@ -2,6 +2,7 @@ import copy, datetime, json, time
 import dateutil.parser
 from decimal import Decimal
 
+import simplejson
 from os import environ
 import singer
 import singer.metrics as metrics
@@ -263,9 +264,19 @@ def do_sync(config, state, stream):
                 else:
                     record[key] = row[key]
 
-                # If null is only type, force null.
-                if all([t == "null" for t in prop.type]):
-                    record[key] = None
+            # Replace all Decimal(0.0) values with None.
+            def replace_decimal_zero_with_none(obj):
+                if isinstance(obj, dict):
+                    return {k: replace_decimal_zero_with_none(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [replace_decimal_zero_with_none(elem) for elem in obj]
+                elif obj == Decimal(0.0):
+                    return None
+                else:
+                    return obj
+
+            # Replace all Decimal(0.0) values to null.
+            record = replace_decimal_zero_with_none(record)            
 
             if LEGACY_TIMESTAMP in properties.keys():
                 record[LEGACY_TIMESTAMP] = int(round(time.time() * 1000))
