@@ -42,7 +42,7 @@ def get_bigquery_client():
         return bigquery.Client.from_service_account_info(json.loads(credentials_json))
     return bigquery.Client()
 
-def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_format="date-time", include_null_timestamps=True):
+def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_format="date-time", include_null_timestamps=False):
     keys = copy.deepcopy(keys)
     columns = ",".join(keys["columns"])
     datetime_key = keys.get("datetime_key")
