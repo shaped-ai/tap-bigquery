@@ -42,7 +42,7 @@ def get_bigquery_client():
         return bigquery.Client.from_service_account_info(json.loads(credentials_json))
     return bigquery.Client()
 
-def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_format="date-time"):
+def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_format="date-time", include_null_timestamps=True):
     keys = copy.deepcopy(keys)
     columns = ",".join(keys["columns"])
     datetime_key = keys.get("datetime_key")
@@ -88,12 +88,15 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
                      (" AND CAST({start_datetime} as datetime) < " +
                       "CAST({datetime_key} as datetime)").format(**keys))
 
+    if include_null_timestamps:
+        query = (query + " OR {datetime_key} IS NULL".format(**keys))
+
     if keys.get("datetime_key") and keys.get("end_datetime"):
         query = (query +
                  (" AND CAST({datetime_key} as datetime) < " +
                   "CAST({end_datetime} AS datetime)").format(**keys))
     if keys.get("datetime_key"):
-        query = (query + " ORDER BY {datetime_key}".format(**keys))
+        query = (query + " ORDER BY {datetime_key} NULLS FIRST".format(**keys))
 
     if limit is not None:
         query = query + " LIMIT %d" % limit
@@ -190,9 +193,13 @@ def do_sync(config, state, stream):
     start_datetime = singer.get_bookmark(state, tap_stream_id,
                                          BOOKMARK_KEY_NAME)
     if start_datetime:
+        # Do not include NULLs on subsequent runs.
+        include_null_timestamps = False
         if not config.get("start_always_inclusive"):
             inclusive_start = False
     else:
+        # Include NULLs on first run.
+        include_null_timestamps = True
         start_datetime = config.get("start_datetime")
         if datetime_key_format == "date-time":
             start_datetime = dateutil.parser.parse(start_datetime).strftime(
@@ -218,7 +225,8 @@ def do_sync(config, state, stream):
     limit = config.get("limit", None)
 
     query = _build_query(keys, metadata.get("filters", []), inclusive_start,
-                         limit=limit, datetime_format=datetime_key_format)
+                         limit=limit, datetime_format=datetime_key_format, 
+                         include_null_timestamps=include_null_timestamps)
     query_job = client.query(query)
 
     properties = stream.schema.properties
