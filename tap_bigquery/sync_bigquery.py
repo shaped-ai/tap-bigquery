@@ -78,31 +78,26 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
         for f in filters:
             query = query + " AND " + f
 
-    if keys.get("datetime_key") and keys.get("start_datetime"):
-        if inclusive_start:
-            query = (query +
-                     (" AND CAST({start_datetime} as datetime) <= " +
-                      "CAST({datetime_key} as datetime)").format(**keys))
-        else:
-            query = (query +
-                     (" AND CAST({start_datetime} as datetime) < " +
-                      "CAST({datetime_key} as datetime)").format(**keys))
+    if keys.get("datetime_key"):
+        datetime_conditions = []
+        if keys.get("start_datetime") and keys.get("end_datetime"):
+            # Both start and end datetime conditions must be met
+            datetime_conditions.append(f"CAST({datetime_key} as datetime) >= CAST({keys['start_datetime']} as datetime)")
+            datetime_conditions.append(f"CAST({datetime_key} as datetime) <= CAST({keys['end_datetime']} as datetime)")
 
-    if include_null_timestamps:
-        query = (query + " OR {datetime_key} IS NULL".format(**keys))
+            # Add OR condition to include rows where datetime_key is null
+            if include_null_timestamps:
+                datetime_conditions = [f"({' AND '.join(datetime_conditions)}) OR {datetime_key} IS NULL"]
 
-    if keys.get("datetime_key") and keys.get("end_datetime"):
-        query = (query +
-                 (" AND CAST({datetime_key} as datetime) < " +
-                  "CAST({end_datetime} AS datetime)").format(**keys))
+            query += f" AND {' AND '.join(datetime_conditions)}"
+
     if keys.get("datetime_key"):
         query = (query + " ORDER BY {datetime_key} NULLS FIRST".format(**keys))
 
     if limit is not None:
-        query = query + " LIMIT %d" % limit
+        query = query + f" LIMIT {limit}"
 
     return query
-
 
 def do_discover(config, stream, output_schema_file=None,
                 add_timestamp=True):
