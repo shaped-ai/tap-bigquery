@@ -82,8 +82,8 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
         datetime_conditions = []
         if keys.get("start_datetime") and keys.get("end_datetime"):
             # Both start and end datetime conditions must be met
-            datetime_conditions.append(f"CAST({datetime_key} as datetime) >= CAST({keys['start_datetime']} as datetime)")
-            datetime_conditions.append(f"CAST({datetime_key} as datetime) <= CAST({keys['end_datetime']} as datetime)")
+            datetime_conditions.append(f"CAST({keys['datetime_key']} as datetime) >= CAST({keys['start_datetime']} as datetime)")
+            datetime_conditions.append(f"CAST({keys['datetime_key']} as datetime) <= CAST({keys['end_datetime']} as datetime)")
 
             # Add OR condition to include rows where datetime_key is null
             if include_null_timestamps:
