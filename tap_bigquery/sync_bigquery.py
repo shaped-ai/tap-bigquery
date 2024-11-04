@@ -167,6 +167,44 @@ def do_discover(config, stream, output_schema_file=None,
     return stream_metadata, key_properties, catalog
 
 
+def _convert_value(value, prop):
+    """Helper function to convert a single value according to schema property."""
+    if value is None:
+        if prop.type[0] != "null":
+            raise ValueError("NULL value not allowed by the schema")
+        return None
+        
+    if prop.format == "date-time":
+        if type(value) == str:
+            r = dateutil.parser.parse(value)
+        elif type(value) == datetime.date:
+            r = datetime.datetime(
+                year=value.year,
+                month=value.month,
+                day=value.day)
+        elif type(value) == datetime.datetime:
+            r = value
+        return r.isoformat()
+    elif prop.type[1] == "string":
+        return str(value)
+    elif prop.type[1] == "number":
+        return Decimal(value)
+    elif prop.type[1] == "integer":
+        return int(value)
+    return value
+
+
+def _replace_decimal_zero_with_none(obj):
+    if isinstance(obj, dict):
+        return {k: replace_decimal_zero_with_none(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [replace_decimal_zero_with_none(elem) for elem in obj]
+    elif isinstance(obj, Decimal) and obj == Decimal('0.0'):
+        return None
+    else:
+        return obj
+
+
 def do_sync(config, state, stream):
     singer.set_currently_syncing(state, stream.tap_stream_id)
     singer.write_state(state)
@@ -243,46 +281,20 @@ def do_sync(config, state, stream):
                            BATCH_TIMESTAMP]:
                     continue
 
-                if row[key] is None:
-                    if prop.type[0] != "null":
-                        raise ValueError(
-                            "NULL value not allowed by the schema"
-                        )
+                value = row[key]
+                
+                # Handle array types.
+                if isinstance(value, list):
+                    if 'array' in prop.type:
+                        items_prop = prop.items
+                        record[key] = [_convert_value(item, items_prop) for item in value]
                     else:
-                        record[key] = None
-                elif prop.format == "date-time":
-                    if type(row[key]) == str:
-                        r = dateutil.parser.parse(row[key])
-                    elif type(row[key]) == datetime.date:
-                        r = datetime.datetime(
-                            year=row[key].year,
-                            month=row[key].month,
-                            day=row[key].day)
-                    elif type(row[key]) == datetime.datetime:
-                        r = row[key]
-                    record[key] = r.isoformat()
-                elif prop.type[1] == "string":
-                    record[key] = str(row[key])
-                elif prop.type[1] == "number":
-                    record[key] = Decimal(row[key])
-                elif prop.type[1] == "integer":
-                    record[key] = int(row[key])
+                        raise ValueError(f"Got list value for non-array field {key}")
                 else:
-                    record[key] = row[key]
+                    record[key] = _convert_value(value, prop)
 
-            # Replace all Decimal(0.0) values with None.
-            def replace_decimal_zero_with_none(obj):
-                if isinstance(obj, dict):
-                    return {k: replace_decimal_zero_with_none(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [replace_decimal_zero_with_none(elem) for elem in obj]
-                elif obj == Decimal(0.0):
-                    return None
-                else:
-                    return obj
-
-            # Replace all Decimal(0.0) values to null.
-            record = replace_decimal_zero_with_none(record)            
+            # Replace all Decimal(0.0) values with None (including in lists).
+            record = _replace_decimal_zero_with_none(record)
 
             if LEGACY_TIMESTAMP in properties.keys():
                 record[LEGACY_TIMESTAMP] = int(round(time.time() * 1000))
