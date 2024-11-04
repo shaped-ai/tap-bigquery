@@ -196,9 +196,9 @@ def _convert_value(value, prop):
 
 def _replace_decimal_zero_with_none(obj):
     if isinstance(obj, dict):
-        return {k: replace_decimal_zero_with_none(v) for k, v in obj.items()}
+        return {k: _replace_decimal_zero_with_none(v) for k, v in obj.items()}
     elif isinstance(obj, list):
-        return [replace_decimal_zero_with_none(elem) for elem in obj]
+        return [_replace_decimal_zero_with_none(elem) for elem in obj]
     elif isinstance(obj, Decimal) and obj == Decimal('0.0'):
         return None
     else:
