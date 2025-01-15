@@ -184,7 +184,7 @@ def do_discover(config, stream, output_schema_file=None,
     schema = {
         "type": "object",
         "properties": {
-            field.name: _build_field_schema(field)
+            field.name.lower(): _build_field_schema(field)
             for field in table.schema
         }
     }
