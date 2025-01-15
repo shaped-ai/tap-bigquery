@@ -30,7 +30,7 @@ BOOKMARK_KEY_NAME = "last_update"
 
 SERVICE_ACCOUNT_INFO_ENV_VAR = "GOOGLE_APPLICATION_CREDENTIALS_STRING"
 
-def get_bigquery_client():
+def _get_bigquery_client() -> bigquery.Client:
     """Initialize a bigquery client from credentials file JSON,
     if in environment, else credentials file.
 
@@ -99,33 +99,103 @@ def _build_query(keys, filters=[], inclusive_start=True, limit=None, datetime_fo
 
     return query
 
+def _build_field_schema(field):
+    """
+    Builds the schema for an individual BigQuery field.
+
+    Args:
+        field (bigquery.SchemaField): The BigQuery field.
+
+    Returns:
+        dict: JSONSchema-compliant field schema.
+    """
+    # Determine the base type
+    base_type = _bigquery_field_to_json_type(field.field_type)
+
+    # Determine the full type list, accounting for nullability
+    field_type = ["null", base_type] if field.mode.upper() == "NULLABLE" else [base_type]
+
+    field_schema = {
+        "type": field_type,
+        "description": field.description or ""
+    }
+
+    # Add format for specific field types
+    if field.field_type.upper() in {"DATETIME", "DATE", "TIME"}:
+        field_schema["format"] = _bigquery_field_to_format(field.field_type)
+
+    return field_schema
+
+def _bigquery_field_to_json_type(bq_type):
+    """
+    Converts a BigQuery field type to a JSONSchema type.
+
+    Args:
+        bq_type (str): The BigQuery field type (e.g., STRING, INTEGER).
+
+    Returns:
+        str: Equivalent JSONSchema type.
+    """
+    type_mapping = {
+        "STRING": "string",
+        "BYTES": "string",
+        "INTEGER": "integer",
+        "INT64": "integer",
+        "FLOAT": "number",
+        "FLOAT64": "number",
+        "BOOLEAN": "boolean",
+        "BOOL": "boolean",
+        "TIMESTAMP": "string",  # Format can be refined further to include date-time
+        "DATE": "string",
+        "TIME": "string",
+        "DATETIME": "string",
+        "GEOGRAPHY": "string",
+        "RECORD": "object",  # Nested fields
+    }
+    return type_mapping.get(bq_type.upper(), "string")  # Default to string
+
+def _bigquery_field_to_format(bq_type):
+    """
+    Maps BigQuery field types to JSONSchema formats.
+
+    Args:
+        bq_type (str): The BigQuery field type.
+
+    Returns:
+        str: JSONSchema format for the given field type.
+    """
+    format_mapping = {
+        "DATETIME": "date-time",
+        "DATE": "date",
+        "TIME": "time"
+    }
+    return format_mapping.get(bq_type.upper())
+
 def do_discover(config, stream, output_schema_file=None,
                 add_timestamp=True):
-    client = get_bigquery_client()
+    client = _get_bigquery_client()
 
-    keys = {"table": stream["table"],
-            "columns": stream["columns"]
-            }
-    limit = config.get("limit", 25000)
-    query = _build_query(keys, stream.get("filters"), limit=limit)
+    table_name = stream["table"]
+    column_names = stream["columns"]
 
-    LOGGER.info("Running query:\n    " + query)
+    table = client.get_table(table_name)
 
-    query_job = client.query(query)
-    results = query_job.result()  # Waits for job to complete.
+    schema = {
+        "type": "object",
+        "properties": {
+            field.name: _build_field_schema(field)
+            for field in table.schema
+        }
+    }
 
-    data = []
-    # Read everything upfront
-    for row in results:
-        record = {}
-        for key in row.keys():
-            record[key] = row[key]
-        data.append(record)
+    if column_names:
+        schema["properties"] = {
+            k: v
+            for k, v
+            in schema["properties"].items()
+            if k.lower() in column_names.lower()
+        }
 
-    if not data:
-        raise Exception("Cannot infer schema: No record returned.")
-
-    schema = getschema.infer_schema(data)
     if add_timestamp:
         timestamp_format = {"type": ["null", "string"],
                             "format": "date-time"}
@@ -145,18 +215,12 @@ def do_discover(config, stream, output_schema_file=None,
             "table": stream["table"],
             "columns": stream["columns"],
             "filters": stream.get("filters", []),
-            "datetime_key": stream["datetime_key"]
-            # "inclusion": "available",
-            # "table-key-properties": ["id"],
-            # "valid-replication-keys": ["date_modified"],
-            # "schema-name": "users"
-            },
+            "datetime_key": stream["datetime_key"],
+        },
         "breadcrumb": []
-        }]
+    }]
 
-    # TODO: Need to put something in here?
     key_properties = []
-
     catalog = {"selected": True,
                "type": "object",
                "stream": stream["name"],
@@ -209,7 +273,7 @@ def do_sync(config, state, stream):
     singer.set_currently_syncing(state, stream.tap_stream_id)
     singer.write_state(state)
 
-    client = get_bigquery_client()
+    client = _get_bigquery_client()
     metadata = stream.metadata[0]["metadata"]
     tap_stream_id = stream.tap_stream_id
 
