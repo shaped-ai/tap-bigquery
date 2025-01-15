@@ -178,7 +178,8 @@ def do_discover(config, stream, output_schema_file=None,
     table_name = stream["table"]
     column_names = stream["columns"]
 
-    table = client.get_table(table_name)
+    # Filter grave characters from table name and query for schema.
+    table = client.get_table(table_name.replace("`", ""))
 
     schema = {
         "type": "object",
@@ -193,7 +194,7 @@ def do_discover(config, stream, output_schema_file=None,
             k: v
             for k, v
             in schema["properties"].items()
-            if k.lower() in column_names.lower()
+            if k in map(lambda x: x.lower(), column_names)
         }
 
     if add_timestamp:
