@@ -124,6 +124,13 @@ def _build_field_schema(field):
     if field.field_type.upper() in {"DATETIME", "DATE", "TIME"}:
         field_schema["format"] = _bigquery_field_to_format(field.field_type)
 
+    # Add support for arrays if field.mode == "REPEATED"
+    if field.mode.upper() == "REPEATED":
+        field_schema = {
+            "type": "array",
+            "items": field_schema
+        }
+
     return field_schema
 
 def _bigquery_field_to_json_type(bq_type):
