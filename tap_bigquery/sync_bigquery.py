@@ -112,11 +112,9 @@ def _build_field_schema(field):
     # Determine the base type
     base_type = _bigquery_field_to_json_type(field.field_type)
 
-    # Determine the full type list, accounting for nullability
-    field_type = ["null", base_type] if field.mode.upper() == "NULLABLE" else [base_type]
-
+    # Build the field schema, making all fields nullable.
     field_schema = {
-        "type": field_type,
+        "type": ["null", base_type],
         "description": field.description or ""
     }
 
