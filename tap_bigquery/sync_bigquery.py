@@ -210,7 +210,9 @@ def do_discover(config, stream, output_schema_file=None,
         match = re.match(regex, column)
         if match:
             column_name = match.group(1)
-            if "double_value" or "float_value" in column:
+            if "double_value" in column:
+                column_type = "number"
+            elif "float_value" in column:
                 column_type = "number"
             elif "int_value" in column:
                 column_type = "integer"
