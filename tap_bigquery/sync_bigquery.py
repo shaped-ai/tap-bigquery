@@ -202,6 +202,23 @@ def do_discover(config, stream, output_schema_file=None,
             if k in map(lambda x: x.lower(), column_names)
         }
 
+    # If column declared is a function alias, extract the alias name.
+    # Regex to extract alias name from column name.
+    regex = r".*\s+AS\s(.*)"
+    for column in column_names:
+        match = re.match(regex, column)
+        if match:
+            column_name = match.group(1)
+            if "double_value" or "float_value" in column:
+                column_type = "number"
+            elif "int_value" in column:
+                column_type = "integer"
+            else:
+                column_type = "string"
+            schema["properties"][column_name.lower()] = {
+                "type": ["null", column_type]
+            }
+
     if add_timestamp:
         timestamp_format = {"type": ["null", "string"],
                             "format": "date-time"}
