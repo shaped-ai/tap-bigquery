@@ -1,3 +1,4 @@
+import re
 import copy, datetime, json, time
 import dateutil.parser
 from decimal import Decimal
